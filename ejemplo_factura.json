@@ -1,0 +1,23 @@
+{
+  "tipo_expo": 2,
+  "pais_destino": 212,
+  "cliente": {
+    "nombre": "Example Corp",
+    "cuit_pais": "55000002126",
+    "id_impositivo": "00-0000000",
+    "domicilio": "123 Main St, New York, NY 10001, USA"
+  },
+  "moneda": "DOL",
+  "idioma": 1,
+  "forma_pago": "Transferencia bancaria - Moneda Extranjera",
+  "obs": "",
+  "items": [
+    {
+      "codigo": "SERV",
+      "descripcion": "Consultoría de software",
+      "cantidad": 1,
+      "unidad": 7,
+      "precio": 1000
+    }
+  ]
+}

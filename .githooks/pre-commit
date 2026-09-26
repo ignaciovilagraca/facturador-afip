@@ -1,0 +1,21 @@
+#!/bin/sh
+# Bloquea commits con datos personales o secretos de ARCA.
+fallo=0
+
+# Archivos que nunca van al repo
+prohibidos=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '(^|/)(certs|facturas)/|\.(key|csr|crt|pem|p12)$|(^|/)\.env$' )
+if [ -n "$prohibidos" ]; then
+  echo "pre-commit: archivos prohibidos en el commit:"; echo "$prohibidos"; fallo=1
+fi
+
+# El CUIT del .env y cualquier clave o certificado en el contenido
+cuit=$(grep -E '^AFIP_CUIT=' .env 2>/dev/null | cut -d= -f2 | tr -d ' ')
+# Contenido de claves o certificados PEM (líneas base64 de 64 caracteres) y encabezados de claves privadas.
+# No se busca "BEGIN CERTIFICATE" suelto porque el README lo menciona al explicar qué copiar.
+patron='-----BEGIN [A-Z ]*PRIVATE KEY-----|^\+[A-Za-z0-9+/]{64}$'
+[ -n "$cuit" ] && patron="$patron|$cuit"
+if git diff --cached -U0 -- . ':(exclude).githooks' | grep '^+' | grep -qE -e "$patron"; then
+  echo "pre-commit: el commit contiene el CUIT, una clave o un certificado."; fallo=1
+fi
+
+[ $fallo -eq 0 ] || { echo "Commit cancelado."; exit 1; }

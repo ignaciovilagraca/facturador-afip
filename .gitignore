@@ -1,0 +1,22 @@
+# Certificados y claves de AFIP/ARCA: nunca al repo
+certs/
+*.key
+*.csr
+*.crt
+*.pem
+*.p12
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+facturas/
+__pycache__/
+
+# Facturas reales: cualquier JSON salvo el ejemplo
+*.json
+!ejemplo_factura.json
+!perfil.example.json
+.venv/
+*.pdf

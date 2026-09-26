@@ -1,0 +1,29 @@
+{
+  "nombre": "Juan",
+  "punto_venta_prod": 4,
+  "alias_certificado": "facturadorabc123",
+  "vencimiento_certificado": "2028-09-25",
+  "drive_folder_id": "",
+  "formato": {
+    "un_solo_item": true,
+    "descripcion": "Consultoría de software",
+    "idioma": 1,
+    "forma_pago": "Transferencia bancaria - Moneda Extranjera"
+  },
+  "fechas": {
+    "emision": "ultimo_dia_mes_trabajado",
+    "pago": "primer_dia_habil_mes_siguiente"
+  },
+  "cliente_por_defecto": {
+    "alias": "acme",
+    "pais_destino": 212,
+    "cliente": {
+      "nombre": "Acme Inc",
+      "cuit_pais": "55000002126",
+      "id_impositivo": "00-0000000",
+      "domicilio": "123 Main St, New York, NY 10001, USA"
+    },
+    "moneda": "DOL",
+    "notas": ""
+  }
+}
