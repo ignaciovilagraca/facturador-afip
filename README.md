@@ -223,30 +223,59 @@ Para usar exportación y comunes, repetí la relación para cada servicio con el
 
 #### 3.3 Dar de alta el punto de venta
 
-1. Entrá a "Administración de puntos de venta y domicilios".
-2. Elegí tu CUIT y después "A/B/M de Puntos de Venta" → "Agregar".
-3. Poné un número que no uses.
-4. En "Sistema" elegí:
-   - Factura E: "Comprobantes de Exportación - Web Services".
-   - Comunes, si sos monotributista: "Factura Electrónica - Monotributo - Web Services".
-   - Comunes, si sos responsable inscripto: "RECE para aplicativo y web services".
-5. Elegí el domicilio y confirmá.
+Se necesita uno por tipo de factura: uno para Factura E y otro para comunes.
 
-Los puntos de venta de "Comprobantes en línea" no sirven para web services, y el sistema de un punto de venta existente no se puede cambiar: hay que crear uno nuevo. Cada punto de venta tiene su propia numeración. El alta puede tardar unos minutos en verse desde el web service.
+1. Con clave fiscal, entrá a "Administración de puntos de venta y domicilios". Si no aparece, adherilo como en el paso 2.2, buscando ARCA → Servicios interactivos → "Administración de puntos de venta y domicilios".
+2. Se abre "PVE - Gestión de puntos de venta". Elegí tu CUIT y, en el menú principal, "A/B/M de Puntos de venta / emisión".
+3. Vas a ver el listado con las columnas Número, Nombre de Fantasía, Sistema y Baja. Revisá qué números ya usás y cuáles son de web services (el sistema termina en "Web Services").
+4. Tocá "Agregar..." y completá:
+   1. **Número**: uno que no uses.
+   2. **Nombre de Fantasía**: opcional; es el nombre comercial que aparece en tus facturas.
+   3. **Sistema**:
+      - Factura E: "Comprobantes de Exportación - Web Services".
+      - Comunes, si sos monotributista: "Factura Electrónica - Monotributo - Web Services".
+      - Comunes, si sos responsable inscripto: "RECE para aplicativo y web services".
+   4. **Domicilio**: elegí uno de los domicilios que tenés declarados en ARCA.
+5. Confirmá. El punto de venta nuevo aparece en el listado.
+
+Tené en cuenta:
+- Los sistemas "Factura en Línea" (por ejemplo "Factura en Línea - Monotributo" o "Comprobantes de Exportación - Factura en Línea") son de "Comprobantes en línea" y **no sirven para web services**.
+- El sistema de un punto de venta no se puede cambiar: si elegiste mal, dalo de baja con "Baja" y creá otro.
+- Cada punto de venta tiene su propia numeración, que empieza en 1.
+- El alta puede tardar unos minutos en verse desde el web service.
+
+Con el ejemplo de la tabla de arriba, un monotributista que factura al exterior y en Argentina termina con algo así:
+
+| Número | Sistema | Uso |
+|---|---|---|
+| 4 | Comprobantes de Exportación - Web Services | Factura E con este proyecto |
+| 5 | Factura Electrónica - Monotributo - Web Services | Factura C con este proyecto |
+
+#### 3.4 Lista de control
+
+Para cada servicio que vayas a usar (`wsfex`, `wsfe` o los dos):
+
+- [ ] Certificado de producción descargado en `certs/afip_prod.crt` (paso 3.1).
+- [ ] Relación del alias como Computador Fiscal con el servicio (paso 3.2).
+- [ ] Punto de venta del sistema "... - Web Services" que corresponde (paso 3.3).
+- [ ] `probar_conexion.py prod` (y `prod wsfe`) muestra el punto de venta y el último número (paso 4).
 
 ### Paso 4: verificar
 
 ```bash
-.venv/bin/python probar_conexion.py homo          # agregá wsfe al final para facturas comunes
+.venv/bin/python probar_conexion.py homo          # Factura E
+.venv/bin/python probar_conexion.py homo wsfe     # facturas comunes
 .venv/bin/python probar_conexion.py prod
+.venv/bin/python probar_conexion.py prod wsfe
 ```
 
-Tiene que mostrar el servicio OK (`FEXDummy` o `FEDummy`), el login en WSAA y, en producción, tu punto de venta con `N` (no bloqueado). Errores comunes:
+Son consultas de solo lectura: no emiten nada. Tiene que mostrar el servicio OK (`FEXDummy` o `FEDummy`), el login en WSAA y, en producción, tu punto de venta con `N` (no bloqueado) y el último número emitido (0 si es nuevo). Errores comunes:
 
 | Error | Causa |
 |---|---|
 | Computador no autorizado a acceder al servicio | Falta la autorización del paso 2.4 (homologación) o la relación del paso 3.2 (producción), o se hizo para `wsfe` en lugar de `wsfex`. |
 | 1607: Campo Pto_venta no es valido | El punto de venta no es del sistema "Comprobantes de Exportación - Web Services". |
+| `Puntos de venta: ninguno` en `prod wsfe` | No hay punto de venta de facturas comunes para web services, o todavía no se propagó el alta. |
 | DH_KEY_TOO_SMALL | El servidor de producción usa una clave Diffie-Hellman de 1024 bits; `afip.py` ya lo resuelve. |
 
 ### Renovación
