@@ -37,6 +37,7 @@ Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF 
 - [Skill para Claude Code](#skill-para-claude-code)
 - [Seguridad](#seguridad)
 - [Notas](#notas)
+- [Licencia](#licencia)
 
 ## Archivos
 
@@ -390,3 +391,9 @@ La skill también sabe guiarte en el alta en ARCA: si te perdés en algún paso 
 - ARCA acepta como fecha de emisión desde 5 días antes hasta 5 días después de hoy en la Factura E (error 1500). En las A, B y C, 5 días para productos y 10 para servicios.
 - En cada punto de venta las fechas no pueden retroceder: una factura no puede tener fecha anterior a la última emitida.
 - Homologación no tiene puntos de venta dados de alta; el script usa el 1.
+
+## Licencia
+
+[MIT](LICENSE). El software se ofrece tal cual, sin garantías: revisá cada factura antes de emitirla en producción.
+
+El logo de ARCA (`assets/arca_logo.png`) es de ARCA y no está cubierto por esta licencia; se usa solo para que el PDF replique el diseño de "Comprobantes en línea".
