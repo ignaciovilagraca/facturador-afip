@@ -1,0 +1,17 @@
+# CUIT del emisor, sin guiones
+AFIP_CUIT=
+
+# Datos del emisor que se guardan con cada factura (para generar el PDF más adelante)
+AFIP_RAZON_SOCIAL=
+AFIP_DOMICILIO_COMERCIAL=
+AFIP_CONDICION_IVA=
+AFIP_INGRESOS_BRUTOS=
+AFIP_INICIO_ACTIVIDADES=
+
+# Opcional: tope por comprobante, en pesos (el total por la cotización). Vacío: sin tope
+FACTURADOR_TOTAL_MAXIMO_ARS=
+
+# Cómo se confirma cada emisión en producción: la primera disponible de la lista.
+# apps (tarjeta en el chat), elicitation (formulario del cliente), permiso (diálogo de permiso del cliente),
+# dialogo (diálogo del sistema). Sacá "permiso" si emitir_en_produccion no está en "ask" en tu cliente.
+FACTURADOR_CONFIRMACION=apps,elicitation,permiso,dialogo

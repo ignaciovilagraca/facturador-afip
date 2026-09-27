@@ -20,5 +20,8 @@ __pycache__/
 !ejemplo_factura_comun.json
 !ejemplo_nota_credito.json
 !perfil.example.json
+!src/facturador_afip/plantillas/perfil.json
 .venv/
 *.pdf
+.pytest_cache/
+dist/

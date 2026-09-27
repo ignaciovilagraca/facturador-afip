@@ -34,6 +34,7 @@ Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF 
     - [3.4 Lista de control](#34-lista-de-control)
   - [Paso 4: verificar](#paso-4-verificar)
   - [Renovación](#renovación)
+- [Biblioteca de Python](#biblioteca-de-python)
 - [Skill para Claude Code](#skill-para-claude-code)
 - [Seguridad](#seguridad)
 - [Notas](#notas)
@@ -356,6 +357,38 @@ Los certificados vencen a los 2 años (la fecha está en el certificado: `openss
 - **Producción:** en "Administración de Certificados Digitales", elegí tu CUIT, tocá "Ver" en la fila del alias y después "Agregar certificado"; subí el mismo `certs/afip_prod.csr`. En la pantalla del alias vas a ver dos certificados: tocá "Descargar" en el nuevo (el de vencimiento más lejano) y reemplazá `certs/afip_prod.crt`.
 
 Si creés que la clave privada quedó expuesta, no renueves: generá una clave nueva con otro alias y hacé todo el alta de nuevo (certificado, autorizaciones y relaciones).
+
+## Biblioteca de Python
+
+El núcleo de este proyecto está en `src/facturador_afip/` y se publica en PyPI como [`facturador-afip`](https://pypi.org/project/facturador-afip/): login en ARCA (WSAA), WSFE, WSFEX y padrón; emisión en dos pasos (`preparar` arma el pedido y el resumen, `enviar` pide el CAE); el PDF con el diseño de "Comprobantes en línea"; la carpeta de datos; y el alta (clave y CSR, validación de certificados, perfil y la guía paso a paso). La usan la versión web y el [servidor MCP](https://github.com/ignaciovilagraca/facturador-afip-mcp).
+
+```bash
+pip install facturador-afip
+```
+
+```python
+from facturador_afip import emision
+from facturador_afip.datos import Datos
+
+datos = Datos("~/.facturador-afip")                        # .env, certs/, perfil.json, facturas/
+auth = datos.login("homo", "wsfe")                          # o "prod"; "wsfex" para la Factura E
+prep = emision.preparar(factura, "homo", auth)              # arma el pedido y el resumen, sin emitir
+salida = emision.enviar(prep, auth, datos.emisor())         # pide el CAE; lanza emision.Rechazada si ARCA la rechaza
+datos.guardar_comprobante(salida, emision.nombre_registro(salida))   # JSON y PDF en facturas/homo/
+```
+
+`factura` es el mismo JSON que usa `facturar.py`. Quien no usa una carpeta de datos (por ejemplo, la web, que guarda todo cifrado por usuario) pasa sus propias credenciales y su propia caché de tickets a `arca.login`, y usa `configuracion.generar_clave_y_csr` y `configuracion.validar_certificado` para el alta.
+
+Los scripts de la terminal (`facturar.py` y los demás de la raíz) todavía tienen su propia copia del núcleo; van a pasar a usar la biblioteca.
+
+Desarrollo:
+
+```bash
+uv sync
+uv run pytest
+```
+
+Los tests simulan ARCA: no salen a la red.
 
 ## Skill para Claude Code
 
