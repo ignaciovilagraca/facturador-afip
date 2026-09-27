@@ -333,6 +333,6 @@ Anulan, total o parcialmente, una Factura A, B o C ya emitida en producción. Es
 ## Si algo falla
 
 - **Errores de configuración o de ARCA** (no autorizado, punto de venta, ticket, alias, certificado): seguí [Guiar el alta en ARCA](#guiar-el-alta-en-arca).
-- **`DH_KEY_TOO_SMALL`:** `afip.py` ya lo resuelve con `SECLEVEL=1`. Si reaparece, revisá que no se haya perdido ese ajuste.
+- **`DH_KEY_TOO_SMALL`:** la biblioteca (`src/facturador_afip/arca.py`) ya lo resuelve con `SECLEVEL=1`. Si reaparece, revisá que no se haya perdido ese ajuste.
 - **Errores de fecha, cotización u observaciones al emitir:** están en el paso 4 (Validar en homologación) y en la tabla de errores del README.
 - **Certificado por vencer:** ver [Renovar el certificado](#renovar-el-certificado).

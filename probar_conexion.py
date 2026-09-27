@@ -5,17 +5,22 @@ Uso: python3 probar_conexion.py [homo|prod] [wsfex|wsfe]
   wsfex: Factura E (exportación), por defecto
   wsfe:  facturas comunes (A, B, C)
 """
+import logging
 import sys
+from pathlib import Path
 
-from afip import (ENTORNOS, login, puntos_de_venta, puntos_de_venta_fe,
-                  punto_de_venta_activo, punto_de_venta_activo_fe, ultimo_comprobante, ultimo_comprobante_fe,
-                  wsfe, wsfex)
+from facturador_afip.arca import (ENTORNOS, ErrorArca, punto_de_venta_activo, punto_de_venta_activo_fe,
+                                  puntos_de_venta, puntos_de_venta_fe, ultimo_comprobante, ultimo_comprobante_fe,
+                                  wsfe, wsfex)
+from facturador_afip.datos import Datos
+
+datos = Datos(Path(__file__).parent)
 
 
 def probar_wsfex(env):
     r = wsfex(env, "FEXDummy", None)
     print(f"FEXDummy: { {c.tag.split('}')[1]: c.text for c in r} }")
-    auth = login(env)
+    auth = datos.login(env, "wsfex")
     ptos, err = puntos_de_venta(env, auth)
     print(f"Puntos de venta: {ptos or 'ninguno'} {err}")
     pto = punto_de_venta_activo(env, auth)
@@ -27,7 +32,7 @@ def probar_wsfex(env):
 def probar_wsfe(env):
     r = wsfe(env, "FEDummy", None)
     print(f"FEDummy: { {c.tag.split('}')[1]: c.text for c in r} }")
-    auth = login(env, "wsfe")
+    auth = datos.login(env, "wsfe")
     ptos, err = puntos_de_venta_fe(env, auth)
     print(f"Puntos de venta: {ptos or 'ninguno'} {' '.join(err)}")
     pto = punto_de_venta_activo_fe(env, auth)
@@ -47,4 +52,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    try:
+        main()
+    except ErrorArca as e:
+        raise SystemExit(str(e)) from e

@@ -7,8 +7,10 @@ Uso:
     python3 parametros.py monedas <texto>
 """
 import sys
+from pathlib import Path
 
-from afip import campo, login, wsfex, FE_NS
+from facturador_afip.arca import ErrorArca, tabla_parametro
+from facturador_afip.datos import Datos
 
 TABLAS = {
     "paises": ("FEXGetPARAM_DST_pais", "ClsFEXResponse_DST_pais", "DST_Codigo", "DST_Ds"),
@@ -20,14 +22,15 @@ TABLAS = {
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in TABLAS:
         raise SystemExit(__doc__)
-    metodo, nodo, cod, ds = TABLAS[sys.argv[1]]
     filtro = " ".join(sys.argv[2:]).upper()
-    r = wsfex("homo", metodo, login("homo"))
-    for x in r.iter(f"{{{FE_NS}}}{nodo}"):
-        desc = campo(x, ds) or ""
-        if filtro in desc.upper():
-            print(f"{campo(x, cod)}\t{desc}")
+    datos = Datos(Path(__file__).parent)
+    for codigo, descripcion in tabla_parametro("homo", datos.login("homo", "wsfex"), *TABLAS[sys.argv[1]]):
+        if filtro in descripcion.upper():
+            print(f"{codigo}\t{descripcion}")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ErrorArca as e:
+        raise SystemExit(str(e)) from e

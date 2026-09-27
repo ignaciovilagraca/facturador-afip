@@ -9,7 +9,7 @@ Genera el PDF con el mismo diseño que "Comprobantes en línea" (la Factura C es
 
 Obtiene el CAE, lleva la numeración y guarda cada factura emitida.
 
-Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF usa `reportlab` y `qrcode` (ver `requirements.txt`).
+Requiere Python 3.11 o más nuevo. La lógica está en la biblioteca `facturador_afip` (`src/`), que firma con `cryptography` y arma el PDF con `reportlab` y `qrcode`; los scripts de la raíz son la terminal.
 
 ## Índice
 
@@ -44,9 +44,8 @@ Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF 
 
 | Archivo | Qué hace |
 |---|---|
-| `afip.py` | Login en WSAA (con caché del ticket por servicio) y llamadas SOAP a WSFEX y WSFE |
 | `facturar.py` | Emite una factura a partir de un JSON: Factura E, o A, B o C si el JSON tiene `"tipo"` |
-| `comun.py` | Lógica de las Facturas A, B y C |
+| `src/facturador_afip/` | La biblioteca: WSAA, WSFE, WSFEX y padrón, emisión, PDF, carpeta de datos y alta (ver [Biblioteca de Python](#biblioteca-de-python)) |
 | `probar_conexion.py` | Prueba de solo lectura: estado del servicio, login, puntos de venta y último número |
 | `pdf.py` | Genera el PDF de una factura emitida a partir de su JSON |
 | `parametros.py` | Busca códigos de país, CUIT genérico por país y monedas |
@@ -57,6 +56,12 @@ Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF 
 ## Configuración
 
 ### 0. Entorno de Python
+
+```bash
+uv sync
+```
+
+O, sin uv:
 
 ```bash
 python3 -m venv .venv
@@ -347,7 +352,7 @@ Son consultas de solo lectura: no emiten nada. Tiene que mostrar el servicio OK 
 | 1674 / 10036: fecha de pago anterior a la emisión | La fecha de pago (o de vencimiento) tiene que ser igual o posterior a la de emisión. |
 | 2053: cotización no válida | La cotización tiene que ser la del día anterior a la fecha del comprobante; el script ya la pide así. |
 | Aprobada con la observación 10238 (CUIT receptora inexistente) | ARCA emitió la factura igual. En producción hay que anularla con nota de crédito. Revisá el CUIT del receptor antes de emitir. |
-| DH_KEY_TOO_SMALL | El servidor de producción usa una clave Diffie-Hellman de 1024 bits; `afip.py` ya lo resuelve. |
+| DH_KEY_TOO_SMALL | El servidor de producción usa una clave Diffie-Hellman de 1024 bits; la biblioteca ya lo resuelve. |
 
 ### Renovación
 
@@ -379,7 +384,7 @@ datos.guardar_comprobante(salida, emision.nombre_registro(salida))   # JSON y PD
 
 `factura` es el mismo JSON que usa `facturar.py`. Quien no usa una carpeta de datos (por ejemplo, la web, que guarda todo cifrado por usuario) pasa sus propias credenciales y su propia caché de tickets a `arca.login`, y usa `configuracion.generar_clave_y_csr` y `configuracion.validar_certificado` para el alta.
 
-Los scripts de la terminal (`facturar.py` y los demás de la raíz) todavía tienen su propia copia del núcleo; van a pasar a usar la biblioteca.
+Los scripts de la terminal (`facturar.py` y los demás de la raíz) usan la biblioteca con la raíz del repo como carpeta de datos.
 
 Desarrollo:
 
@@ -420,7 +425,7 @@ La skill también sabe guiarte en el alta en ARCA: si te perdés en algún paso 
 
 ## Notas
 
-- El servidor de producción de WSFEX negocia una clave Diffie-Hellman de 1024 bits, que OpenSSL 3 rechaza. `afip.py` baja el nivel de seguridad de TLS a `SECLEVEL=1` solo para estas conexiones y sigue verificando el certificado del servidor.
+- El servidor de producción de WSFEX negocia una clave Diffie-Hellman de 1024 bits, que OpenSSL 3 rechaza. `arca.py` (en la biblioteca) baja el nivel de seguridad de TLS a `SECLEVEL=1` solo para estas conexiones y sigue verificando el certificado del servidor.
 - ARCA acepta como fecha de emisión desde 5 días antes hasta 5 días después de hoy en la Factura E (error 1500). En las A, B y C, 5 días para productos y 10 para servicios.
 - En cada punto de venta las fechas no pueden retroceder: una factura no puede tener fecha anterior a la última emitida.
 - Homologación no tiene puntos de venta dados de alta; el script usa el 1.
