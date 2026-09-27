@@ -11,6 +11,32 @@ Obtiene el CAE, lleva la numeración y guarda cada factura emitida.
 
 Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF usa `reportlab` y `qrcode` (ver `requirements.txt`).
 
+## Índice
+
+- [Archivos](#archivos)
+- [Configuración](#configuración)
+  - [0. Entorno de Python](#0-entorno-de-python)
+  - [1. Certificados y alta en ARCA](#1-certificados-y-alta-en-arca)
+  - [2. .env](#2-env)
+  - [3. Hook de git](#3-hook-de-git)
+- [Uso](#uso)
+  - [Campos del JSON (Factura E)](#campos-del-json-factura-e)
+  - [Facturas comunes (A, B y C)](#facturas-comunes-a-b-y-c)
+- [Alta en ARCA paso a paso](#alta-en-arca-paso-a-paso)
+  - [Requisitos](#requisitos)
+  - [Paso 1: generar la clave privada y el pedido de certificado (CSR)](#paso-1-generar-la-clave-privada-y-el-pedido-de-certificado-csr)
+  - [Paso 2: homologación (entorno de pruebas)](#paso-2-homologación-entorno-de-pruebas)
+  - [Paso 3: producción](#paso-3-producción)
+    - [3.1 Obtener el certificado](#31-obtener-el-certificado)
+    - [3.2 Autorizar el certificado para el servicio](#32-autorizar-el-certificado-para-el-servicio)
+    - [3.3 Dar de alta el punto de venta](#33-dar-de-alta-el-punto-de-venta)
+    - [3.4 Lista de control](#34-lista-de-control)
+  - [Paso 4: verificar](#paso-4-verificar)
+  - [Renovación](#renovación)
+- [Skill para Claude Code](#skill-para-claude-code)
+- [Seguridad](#seguridad)
+- [Notas](#notas)
+
 ## Archivos
 
 | Archivo | Qué hace |
