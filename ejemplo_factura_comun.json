@@ -1,0 +1,19 @@
+{
+  "tipo": "C",
+  "concepto": 2,
+  "receptor": {
+    "nombre": "Juan Pérez",
+    "doc_tipo": "DNI",
+    "doc_nro": "30123456",
+    "condicion_iva": 5,
+    "domicilio": "Av. Siempreviva 742, CABA"
+  },
+  "moneda": "PES",
+  "fecha": "2026-09-30",
+  "servicio_desde": "2026-09-01",
+  "servicio_hasta": "2026-09-30",
+  "fecha_vto_pago": "2026-10-10",
+  "items": [
+    {"descripcion": "Consultoría de software", "cantidad": 1, "precio": 150000}
+  ]
+}

@@ -17,6 +17,7 @@ __pycache__/
 # Facturas reales: cualquier JSON salvo el ejemplo
 *.json
 !ejemplo_factura.json
+!ejemplo_factura_comun.json
 !perfil.example.json
 .venv/
 *.pdf

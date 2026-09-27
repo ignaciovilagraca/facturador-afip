@@ -33,17 +33,19 @@ ENTORNOS = {
         "key": CERTS / "afip.key",
         "wsaa": "https://wsaahomo.afip.gov.ar/ws/services/LoginCms",
         "wsfex": "https://wswhomo.afip.gov.ar/wsfexv1/service.asmx",
+        "wsfe": "https://wswhomo.afip.gov.ar/wsfev1/service.asmx",
     },
     "prod": {
         "cert": CERTS / "afip_prod.crt",
         "key": CERTS / "afip_prod.key",
         "wsaa": "https://wsaa.afip.gov.ar/ws/services/LoginCms",
         "wsfex": "https://servicios1.afip.gov.ar/wsfexv1/service.asmx",
+        "wsfe": "https://servicios1.afip.gov.ar/wsfev1/service.asmx",
     },
 }
 
-SERVICIO = "wsfex"
-FE_NS = "http://ar.gov.afip.dif.fexv1/"
+FE_NS = "http://ar.gov.afip.dif.fexv1/"   # WSFEX: Factura E (exportación)
+FEV1_NS = "http://ar.gov.afip.dif.FEV1/"  # WSFE: facturas comunes (A, B, C)
 
 # servicios1.afip.gov.ar (producción) negocia DH de 1024 bits, que OpenSSL 3
 # rechaza en el nivel de seguridad por defecto. Se baja a SECLEVEL=1 sin
@@ -73,16 +75,16 @@ def soap(url, action, body):
         raise SystemExit(f"Error SOAP: {fault.text if fault is not None else e}")
 
 
-def login(env):
-    """Devuelve (token, sign). Reutiliza el ticket mientras siga vigente."""
+def login(env, servicio="wsfex"):
+    """Devuelve (token, sign) para el servicio. Reutiliza el ticket mientras siga vigente."""
     if not CUIT:
         raise SystemExit("Falta AFIP_CUIT en .env")
     cfg = ENTORNOS[env]
-    cache = CERTS / f"ta_{SERVICIO}_{env}.json"
+    cache = CERTS / f"ta_{servicio}_{env}.json"
     if cache.exists():
         ta = json.loads(cache.read_text())
         if datetime.fromisoformat(ta["expira"]) > datetime.now(timezone.utc) + timedelta(minutes=5):
-            print(f"WSAA: ticket en caché, vence {ta['expira']}")
+            print(f"WSAA ({servicio}): ticket en caché, vence {ta['expira']}")
             return ta["token"], ta["sign"]
 
     ahora = datetime.now(timezone.utc).replace(microsecond=0)
@@ -92,7 +94,7 @@ def login(env):
         f"<uniqueId>{int(ahora.timestamp())}</uniqueId>"
         f"<generationTime>{(ahora - timedelta(minutes=10)).isoformat()}</generationTime>"
         f"<expirationTime>{(ahora + timedelta(minutes=10)).isoformat()}</expirationTime>"
-        f"</header><service>{SERVICIO}</service></loginTicketRequest>"
+        f"</header><service>{servicio}</service></loginTicketRequest>"
     )
     cms = subprocess.run(
         ["openssl", "cms", "-sign", "-signer", cfg["cert"], "-inkey", cfg["key"],
@@ -111,7 +113,7 @@ def login(env):
     expira = ta.findtext(".//expirationTime")
     cache.write_text(json.dumps({"token": token, "sign": sign, "expira": expira}))
     cache.chmod(0o600)
-    print(f"WSAA: login OK, ticket vence {expira}")
+    print(f"WSAA ({servicio}): login OK, ticket vence {expira}")
     return token, sign
 
 
@@ -180,3 +182,46 @@ def descripciones_parametros(env, auth, factura):
         "unidad": _param(env, auth, "FEXGetPARAM_UMed", "ClsFEXResponse_UMed",
                          "Umed_Id", "Umed_Ds", factura["items"][0].get("unidad", 7)),
     }
+
+
+# --- WSFE: facturas comunes (A, B, C) ---
+
+def wsfe(env, metodo, auth, body=""):
+    """Llama a un método de WSFE y devuelve el nodo <metodo>Result."""
+    auth_xml = (f"<Auth><Token>{auth[0]}</Token><Sign>{auth[1]}</Sign><Cuit>{CUIT}</Cuit></Auth>"
+                if auth else "")
+    resp = soap(ENTORNOS[env]["wsfe"], FEV1_NS + metodo,
+                f'<{metodo} xmlns="{FEV1_NS}">{auth_xml}{body}</{metodo}>')
+    return resp.find(f".//{{{FEV1_NS}}}{metodo}Result")
+
+
+def campo_fe(nodo, nombre):
+    return nodo.findtext(f".//{{{FEV1_NS}}}{nombre}")
+
+
+def mensajes_fe(nodo, contenedor, item):
+    """Lista 'código: mensaje' de Errors/Err, Observaciones/Obs o Events/Evt."""
+    return [f"{campo_fe(e, 'Code')}: {campo_fe(e, 'Msg')}"
+            for c in nodo.iter(f"{{{FEV1_NS}}}{contenedor}")
+            for e in c.iter(f"{{{FEV1_NS}}}{item}")]
+
+
+def puntos_de_venta_fe(env, auth):
+    r = wsfe(env, "FEParamGetPtosVenta", auth)
+    return [(campo_fe(p, "Nro"), campo_fe(p, "EmisionTipo"), campo_fe(p, "Bloqueado"), campo_fe(p, "FchBaja"))
+            for p in r.iter(f"{{{FEV1_NS}}}PtoVenta")], mensajes_fe(r, "Errors", "Err")
+
+
+def punto_de_venta_activo_fe(env, auth):
+    ptos, _ = puntos_de_venta_fe(env, auth)
+    activo = next((p[0] for p in ptos if p[2] == "N" and p[3] in (None, "", "NULL")), None)
+    # En homologación no hay puntos de venta dados de alta y cualquiera sirve
+    return activo or ("1" if env == "homo" else None)
+
+
+def ultimo_comprobante_fe(env, auth, pto, tipo):
+    r = wsfe(env, "FECompUltimoAutorizado", auth, f"<PtoVta>{pto}</PtoVta><CbteTipo>{tipo}</CbteTipo>")
+    nro = campo_fe(r, "CbteNro")
+    if nro is None:
+        raise SystemExit(f"FECompUltimoAutorizado: {mensajes_fe(r, 'Errors', 'Err')}")
+    return int(nro)

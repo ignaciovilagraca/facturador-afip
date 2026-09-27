@@ -1,6 +1,11 @@
 # facturador-afip
 
-Emite facturas de exportación (Factura E) en ARCA, ex AFIP, usando el web service WSFEX. Obtiene el CAE, lleva la numeración, guarda cada factura emitida y genera su PDF con el mismo diseño que "Comprobantes en línea".
+Emite facturas electrónicas en ARCA, ex AFIP:
+
+- **Factura E** (exportación) por el web service WSFEX, con PDF del mismo diseño que "Comprobantes en línea".
+- **Facturas comunes A, B y C** por el web service WSFE (todavía sin PDF).
+
+Obtiene el CAE, lleva la numeración y guarda cada factura emitida.
 
 Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF usa `reportlab` y `qrcode` (ver `requirements.txt`).
 
@@ -8,12 +13,14 @@ Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF 
 
 | Archivo | Qué hace |
 |---|---|
-| `afip.py` | Login en WSAA (con caché del ticket) y llamadas SOAP a WSFEX |
-| `facturar.py` | Emite una Factura E a partir de un JSON |
+| `afip.py` | Login en WSAA (con caché del ticket por servicio) y llamadas SOAP a WSFEX y WSFE |
+| `facturar.py` | Emite una factura a partir de un JSON: Factura E, o A, B o C si el JSON tiene `"tipo"` |
+| `comun.py` | Lógica de las facturas comunes (A, B, C) |
 | `probar_conexion.py` | Prueba de solo lectura: estado del servicio, login, puntos de venta y último número |
 | `pdf.py` | Genera el PDF de una factura emitida a partir de su JSON |
 | `parametros.py` | Busca códigos de país, CUIT genérico por país y monedas |
-| `ejemplo_factura.json` | Formato de una factura, con un cliente ficticio |
+| `ejemplo_factura.json` | Formato de una Factura E, con un cliente ficticio |
+| `ejemplo_factura_comun.json` | Formato de una factura común (C), con un cliente ficticio |
 
 ## Configuración
 
@@ -56,8 +63,10 @@ Activa un control antes de cada commit que lo cancela si incluye certificados, c
 Primero conviene probar la conexión:
 
 ```bash
-python3 probar_conexion.py homo
-python3 probar_conexion.py prod
+.venv/bin/python probar_conexion.py homo          # Factura E (wsfex)
+.venv/bin/python probar_conexion.py homo wsfe     # facturas comunes
+.venv/bin/python probar_conexion.py prod
+.venv/bin/python probar_conexion.py prod wsfe
 ```
 
 Para emitir una factura, se copia el ejemplo a `facturas/borradores/`, se completa y se envía:
@@ -77,7 +86,7 @@ Al lado del JSON se genera el PDF, con el nombre que usa ARCA (`<CUIT>_019_<PPPP
 .venv/bin/python pdf.py facturas/prod/E-00004-00000001.json
 ```
 
-### Campos del JSON
+### Campos del JSON (Factura E)
 
 | Campo | Obligatorio | Descripción |
 |---|---|---|
@@ -98,11 +107,36 @@ Al lado del JSON se genera el PDF, con el nombre que usa ARCA (`<CUIT>_019_<PPPP
 
 El total se calcula sumando los ítems.
 
+### Facturas comunes (A, B y C)
+
+El JSON lleva `"tipo"`: `"C"` si sos monotributista; `"A"` (a responsables inscriptos) o `"B"` (al resto) si sos responsable inscripto. Ver `ejemplo_factura_comun.json`.
+
+| Campo | Obligatorio | Descripción |
+|---|---|---|
+| `tipo` | sí | `A`, `B` o `C` |
+| `concepto` | no | `1` productos, `2` servicios (por defecto), `3` productos y servicios |
+| `receptor.doc_tipo` | no | `CUIT`, `CUIL`, `DNI` o `CF` (consumidor final sin identificar, por defecto). La A exige `CUIT` |
+| `receptor.doc_nro` | según `doc_tipo` | Número de documento, sin guiones |
+| `receptor.condicion_iva` | no | Condición frente al IVA del receptor: `1` responsable inscripto, `4` exento, `5` consumidor final, `6` monotributo, `7` no categorizado, `8` proveedor del exterior, `9` cliente del exterior, `10` IVA liberado, `13` monotributista social, `15` IVA no alcanzado, `16` monotributo trabajador independiente promovido. Por defecto `1` en la A y `5` en B y C |
+| `receptor.nombre`, `receptor.domicilio` | no | Se guardan en el JSON; WSFE no los recibe |
+| `moneda` | no | `PES` por defecto; `DOL`, `060` (euro), etc. |
+| `cancela_misma_moneda` | no | Con moneda extranjera: `S` si se cobra en esa misma moneda, `N` (por defecto) si no |
+| `cotizacion` | no | Por defecto, la oficial de ARCA del día anterior a `fecha` |
+| `fecha` | no | `AAAA-MM-DD`; por defecto, hoy |
+| `servicio_desde`, `servicio_hasta` | no | Período facturado (conceptos 2 y 3); por defecto, el mes de `fecha` |
+| `fecha_vto_pago` | no | Vencimiento del pago (conceptos 2 y 3); por defecto, `fecha`. No puede ser anterior |
+| `punto_venta` | no | Por defecto, el primer punto de venta activo de WSFE |
+| `items[]` | sí | `descripcion`, `precio` y, opcionales, `cantidad` y `bonificacion`. En A y B, `precio` es el neto sin IVA y cada ítem lleva `iva` (`21` por defecto; también `0`, `2.5`, `5`, `10.5`, `27`). En C, `precio` es el final |
+
+WSFE no recibe el detalle de ítems, solo los totales: el script calcula el neto, el IVA por alícuota y el total, y guarda los ítems en el JSON. Cada factura aprobada queda en `facturas/<entorno>/<tipo>-PPPPP-NNNNNNNN.json`.
+
+**Aprobada con observaciones:** ARCA puede aprobar una factura y a la vez avisar que hay que anularla (por ejemplo, si la CUIT del receptor no existe). El script lo muestra destacado; en producción, eso obliga a emitir una nota de crédito. Revisá bien el documento del receptor antes de emitir.
+
 ## Alta en ARCA paso a paso
 
 Para usar los web services de facturación hay que: generar una clave y un pedido de certificado, obtener el certificado en ARCA, autorizarlo para el servicio y, en producción, dar de alta un punto de venta para web services. Se hace una vez por entorno.
 
-**Este proyecto emite solo Factura E (exportación, servicio `wsfex`).** Los pasos para facturas comunes (A, B y C, servicio `wsfe`) están para quien quiera habilitarlas, pero el código para emitirlas no está incluido.
+Los pasos son los mismos para Factura E (servicio `wsfex`) y para facturas comunes A, B y C (servicio `wsfe`); cambian el servicio que se autoriza y el tipo de punto de venta. Si vas a emitir los dos tipos, autorizá los dos servicios.
 
 | | Exportación (Factura E) | Comunes (Factura A, B o C) |
 |---|---|---|
@@ -203,11 +237,11 @@ Los puntos de venta de "Comprobantes en línea" no sirven para web services, y e
 ### Paso 4: verificar
 
 ```bash
-.venv/bin/python probar_conexion.py homo
+.venv/bin/python probar_conexion.py homo          # agregá wsfe al final para facturas comunes
 .venv/bin/python probar_conexion.py prod
 ```
 
-Tiene que mostrar `FEXDummy` OK, el login en WSAA y, en producción, tu punto de venta de exportación con `N` (no bloqueado). Errores comunes:
+Tiene que mostrar el servicio OK (`FEXDummy` o `FEDummy`), el login en WSAA y, en producción, tu punto de venta con `N` (no bloqueado). Errores comunes:
 
 | Error | Causa |
 |---|---|
@@ -248,6 +282,6 @@ Los certificados vencen a los 2 años. Para renovarlos, generá un CSR nuevo (pu
 ## Notas
 
 - El servidor de producción de WSFEX negocia una clave Diffie-Hellman de 1024 bits, que OpenSSL 3 rechaza. `afip.py` baja el nivel de seguridad de TLS a `SECLEVEL=1` solo para estas conexiones y sigue verificando el certificado del servidor.
-- ARCA acepta como fecha de emisión desde 5 días antes hasta 5 días después de hoy (error 1500).
+- ARCA acepta como fecha de emisión desde 5 días antes hasta 5 días después de hoy en la Factura E (error 1500). En las comunes, 5 días para productos y 10 para servicios.
 - En cada punto de venta las fechas no pueden retroceder: una factura no puede tener fecha anterior a la última emitida.
 - Homologación no tiene puntos de venta dados de alta; el script usa el 1.

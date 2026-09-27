@@ -1,11 +1,11 @@
 ---
 name: facturar
-description: Prepara Facturas E (exportación de servicios, ARCA/AFIP, WSFEX) con el proyecto facturador-afip y las valida en homologación; la emisión en producción la hace el usuario y solo con su aprobación expresa. Después sube el PDF a Drive si está configurado. Usala siempre que pida crear, hacer, emitir o preparar una factura, facturarle a un cliente, cobrar un trabajo al exterior, sacar un CAE, repetir la factura del mes, o cuando pase un invoice (PDF o imagen) para crear "la equivalente" en ARCA, aunque no diga "Factura E", "ARCA" ni "AFIP".
+description: Prepara facturas electrónicas de ARCA/AFIP con el proyecto facturador-afip (Factura E de exportación por WSFEX y facturas comunes A, B y C por WSFE) y las valida en homologación; la emisión en producción la hace el usuario y solo con su aprobación expresa. Después sube el PDF a Drive si está configurado. Usala siempre que pida crear, hacer, emitir o preparar una factura, facturarle a un cliente, cobrar un trabajo al exterior, sacar un CAE, repetir la factura del mes, o cuando pase un invoice (PDF o imagen) para crear "la equivalente" en ARCA, aunque no diga "Factura E", "ARCA" ni "AFIP".
 ---
 
-# Facturar (Factura E por WSFEX)
+# Facturar (Factura E y facturas comunes)
 
-El usuario factura servicios al exterior como Factura E (tipo 19) con este proyecto. Todo el trabajo pasa por `facturar.py`, que resuelve login, numeración, cotización, envío a ARCA y el PDF. Tu trabajo es armar bien los datos, que el usuario los confirme, validarlos en homologación y dejarle el comando de producción.
+El usuario factura con este proyecto: al exterior con Factura E (tipo 19, WSFEX) y en Argentina con facturas comunes A, B o C (WSFE). Esta guía describe la Factura E; las diferencias de las comunes están en [Facturas comunes](#facturas-comunes-a-b-y-c). Todo el trabajo pasa por `facturar.py`, que resuelve login, numeración, cotización, envío a ARCA y el PDF. Tu trabajo es armar bien los datos, que el usuario los confirme, validarlos en homologación y dejarle el comando de producción.
 
 ## Antes de empezar: proyecto y perfil
 
@@ -22,7 +22,9 @@ Todos los comandos de abajo se corren desde esa carpeta (`cd <proyecto> && ...`)
 | Campo | Para qué |
 |---|---|
 | `nombre` | Cómo dirigirte al usuario |
-| `punto_venta_prod` | Punto de venta de producción ("Comprobantes de Exportación - Web Services") |
+| `punto_venta_prod` | Punto de venta de producción para Factura E ("Comprobantes de Exportación - Web Services") |
+| `punto_venta_prod_comunes` | Punto de venta de producción para facturas comunes; `null` si no tiene |
+| `condicion_iva_emisor` | `monotributo` o `responsable_inscripto`: define si las comunes son C, o A/B |
 | `alias_certificado`, `vencimiento_certificado` | Para diagnosticar errores de autorización y avisar del vencimiento |
 | `drive_folder_id` | Carpeta de Drive donde subir los PDF. Vacío: no se sube nada |
 | `formato` | `un_solo_item`, `descripcion`, `idioma` y `forma_pago` por defecto |
@@ -51,6 +53,8 @@ Una factura emitida en producción es un comprobante fiscal real ante ARCA. No s
 ## Pasos
 
 ### 1. Juntar los datos
+
+Primero definí el tipo: si el cliente está en el exterior es Factura E (seguí esta guía); si está en Argentina es una factura común (seguí además [Facturas comunes](#facturas-comunes-a-b-y-c)). Si no está claro, preguntá.
 
 Los datos pueden venir de tres lugares. Usá el que corresponda.
 
@@ -221,6 +225,31 @@ Solo si `perfil.drive_folder_id` no está vacío. Usá el conector de Google Dri
 4. Confirmale el número de factura, el CAE y el link del archivo en Drive.
 
 Subí solo PDFs de producción. Los de homologación no son facturas reales y nunca van a esa carpeta.
+
+## Facturas comunes (A, B y C)
+
+Mismo flujo y misma regla de producción que la Factura E, con estas diferencias:
+
+**Tipo.** Según `perfil.condicion_iva_emisor`: `monotributo` emite siempre **C**; `responsable_inscripto` emite **A** a responsables inscriptos y **B** al resto (consumidores finales, monotributistas, exentos).
+
+**Datos (paso 1).** El JSON sigue `ejemplo_factura_comun.json`; los campos están en la sección "Facturas comunes" del README. Juntá:
+- Receptor: nombre, documento (`CUIT`, `CUIL`, `DNI`, o `CF` para consumidor final sin identificar) y condición frente al IVA (`1` RI, `4` exento, `5` consumidor final, `6` monotributo; la lista completa está en el README). La A exige CUIT.
+- `concepto`: `2` servicios salvo que venda productos (`1`) o ambos (`3`).
+- Con servicios: `servicio_desde`, `servicio_hasta` (por defecto el mes de `fecha`) y `fecha_vto_pago` (no puede ser anterior a `fecha`).
+- Ítems: en C, `precio` es el final. En A y B, `precio` es el neto sin IVA y cada ítem lleva `iva` (21 por defecto). Si el usuario te da un monto "con IVA incluido", calculá el neto y mostralo en la confirmación.
+- `moneda` es `PES` salvo que diga otra cosa; con moneda extranjera preguntá si se cobra en esa misma moneda (`cancela_misma_moneda` `S` o `N`).
+- `perfil.formato` y `perfil.fechas` son para la Factura E; en las comunes usalos solo si el usuario lo pide.
+- ARCA acepta `fecha` hasta 5 días antes o después de hoy con productos, y hasta 10 con servicios.
+
+**Confirmación (paso 2).** Mostrá tipo (A, B o C), receptor con documento y condición frente al IVA, concepto, período, ítems, y en A y B el neto, el IVA por alícuota y el total.
+
+**Documento del receptor.** Revisalo con cuidado. ARCA puede **aprobar** una factura con una CUIT inexistente y a la vez observar que hay que anularla con nota de crédito. Si en homologación la factura sale aprobada con observaciones, tratalo como un error: mostrale las observaciones al usuario y no sigas a producción hasta resolverlas.
+
+**Homologación (paso 4).** Mismo comando; `facturar.py` detecta el `tipo`. La prueba de conexión es `.venv/bin/python probar_conexion.py homo wsfe`. Si el login falla con "Computador no autorizado", falta autorizar `wsfe` en WSASS.
+
+**Producción (paso 5).** Si `perfil.punto_venta_prod_comunes` es `null`, el usuario todavía no tiene punto de venta para comunes: explicale que tiene que darlo de alta (README, paso 3.3) y autorizar `wsfe` en el Administrador de Relaciones (paso 3.2) antes de emitir. No hay otra diferencia: vos no corrés producción.
+
+**Después (pasos 6 y 7).** Las comunes todavía no tienen PDF: confirmale el número, el CAE y el vencimiento a partir de `facturas/prod/<tipo>-PPPPP-NNNNNNNN.json`, y no subas nada a Drive.
 
 ## Si algo falla
 

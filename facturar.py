@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Emite una Factura E (exportación) por WSFEX a partir de un archivo JSON.
+"""Emite una factura a partir de un archivo JSON.
+
+- Factura E (exportación, WSFEX): el formato de ejemplo_factura.json.
+- Facturas comunes A, B o C (WSFE): el JSON lleva "tipo": "A", "B" o "C"; ver ejemplo_factura_comun.json.
 
 Uso:
     python3 facturar.py factura.json          # homologación
     python3 facturar.py factura.json --prod   # producción, pide confirmación
-
-Ver ejemplo_factura.json para el formato.
 """
 import argparse
 import json
@@ -82,6 +83,10 @@ def main():
     args = ap.parse_args()
     env = "prod" if args.prod else "homo"
     f = json.loads(args.archivo.read_text())
+    if str(f.get("tipo", "E")).upper() in ("A", "B", "C"):
+        import comun
+        f["tipo"] = f["tipo"].upper()
+        return comun.emitir(f, env, args.pto, HOY)
     cli = f["cliente"]
 
     auth = login(env)

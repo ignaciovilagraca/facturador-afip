@@ -1,6 +1,8 @@
 {
   "nombre": "Juan",
   "punto_venta_prod": 4,
+  "punto_venta_prod_comunes": null,
+  "condicion_iva_emisor": "monotributo",
   "alias_certificado": "facturadorabc123",
   "vencimiento_certificado": "2028-09-25",
   "drive_folder_id": "",
