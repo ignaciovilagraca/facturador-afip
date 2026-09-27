@@ -7,6 +7,7 @@ Diferencias con la Factura E:
 - Con concepto 2 (servicios) o 3 (productos y servicios) van el período facturado y el vencimiento del pago.
 """
 import json
+import os
 from calendar import monthrange
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
@@ -88,13 +89,14 @@ def emitir(f, env, pto_forzado, hoy):
     nro = ultimo_comprobante_fe(env, auth, pto, cbte_tipo) + 1
     ctz = Decimal(str(f["cotizacion"])) if f.get("cotizacion") else cotizacion(env, auth, moneda, fecha)
 
-    servicios = ""
+    servicios, periodo = "", None
     if concepto in (2, 3):
         desde = date.fromisoformat(f["servicio_desde"]) if f.get("servicio_desde") else fecha.replace(day=1)
         hasta = (date.fromisoformat(f["servicio_hasta"]) if f.get("servicio_hasta")
                  else fecha.replace(day=monthrange(fecha.year, fecha.month)[1]))
         vto = date.fromisoformat(f["fecha_vto_pago"]) if f.get("fecha_vto_pago") else fecha
         servicios = _tag("FchServDesde", _fch(desde)) + _tag("FchServHasta", _fch(hasta)) + _tag("FchVtoPago", _fch(vto))
+        periodo = {"desde": _fch(desde), "hasta": _fch(hasta), "vto_pago": _fch(vto)}
 
     print(f"\nEntorno:       {env}")
     print(f"Comprobante:   Factura {tipo} {int(pto):05d}-{nro:08d} del {_fch(fecha)} ({CONCEPTOS[concepto]})")
@@ -164,9 +166,21 @@ def emitir(f, env, pto_forzado, hoy):
         "iva": str(iva),
         "total": str(total),
         "alicuotas": [{"id": i, "base": str(b), "importe": str(m)} for i, b, m in alicuotas],
-        "receptor": {"doc_tipo": doc_tipo, "doc_nro": str(doc_nro), "condicion_iva": cond_iva},
+        "concepto": concepto,
+        "periodo": periodo,
+        "receptor": {"doc_tipo": doc_tipo, "doc_nro": str(doc_nro), "condicion_iva": cond_iva,
+                     "nombre": rec.get("nombre", ""), "domicilio": rec.get("domicilio", "")},
+        "condicion_venta": f.get("condicion_venta", "Contado"),
         "observaciones": observaciones,
-        "emisor_cuit": CUIT,
+        # Datos del emisor al momento de emitir, para el PDF
+        "emisor": {
+            "cuit": CUIT,
+            "razon_social": os.environ.get("AFIP_RAZON_SOCIAL"),
+            "domicilio_comercial": os.environ.get("AFIP_DOMICILIO_COMERCIAL"),
+            "condicion_iva": os.environ.get("AFIP_CONDICION_IVA"),
+            "ingresos_brutos": os.environ.get("AFIP_INGRESOS_BRUTOS"),
+            "inicio_actividades": os.environ.get("AFIP_INICIO_ACTIVIDADES"),
+        },
         "factura": f,
     }
     destino = RAIZ / "facturas" / env / f"{tipo}-{int(pto):05d}-{nro:08d}.json"
@@ -185,4 +199,11 @@ def emitir(f, env, pto_forzado, hoy):
     for ev in eventos:
         print(f"Evento: {ev}")
     print(f"Guardada en {destino.relative_to(RAIZ)}")
-    print("El PDF todavía no está disponible para facturas comunes.")
+
+    # La factura ya está emitida y guardada: si el PDF falla, se regenera con pdf.py
+    try:
+        import pdf
+        archivo = pdf.generar_comun(salida, destino.with_name(pdf.nombre_archivo(salida)))
+        print(f"PDF: {archivo.relative_to(RAIZ)}")
+    except Exception as e:  # noqa: BLE001
+        print(f"No se pudo generar el PDF ({e}). Generalo con: .venv/bin/python pdf.py {destino.relative_to(RAIZ)}")

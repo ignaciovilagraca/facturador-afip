@@ -2,8 +2,10 @@
 
 Emite facturas electrónicas en ARCA, ex AFIP:
 
-- **Factura E** (exportación) por el web service WSFEX, con PDF del mismo diseño que "Comprobantes en línea".
-- **Facturas comunes A, B y C** por el web service WSFE (todavía sin PDF).
+- **Factura E** (exportación) por el web service WSFEX.
+- **Facturas comunes A, B y C** por el web service WSFE.
+
+Genera el PDF con el mismo diseño que "Comprobantes en línea" (la Factura C es idéntica a la de ARCA; la A y la B usan la misma base).
 
 Obtiene el CAE, lleva la numeración y guarda cada factura emitida.
 
@@ -118,7 +120,8 @@ El JSON lleva `"tipo"`: `"C"` si sos monotributista; `"A"` (a responsables inscr
 | `receptor.doc_tipo` | no | `CUIT`, `CUIL`, `DNI` o `CF` (consumidor final sin identificar, por defecto). La A exige `CUIT` |
 | `receptor.doc_nro` | según `doc_tipo` | Número de documento, sin guiones |
 | `receptor.condicion_iva` | no | Condición frente al IVA del receptor: `1` responsable inscripto, `4` exento, `5` consumidor final, `6` monotributo, `7` no categorizado, `8` proveedor del exterior, `9` cliente del exterior, `10` IVA liberado, `13` monotributista social, `15` IVA no alcanzado, `16` monotributo trabajador independiente promovido. Por defecto `1` en la A y `5` en B y C |
-| `receptor.nombre`, `receptor.domicilio` | no | Se guardan en el JSON; WSFE no los recibe |
+| `receptor.nombre`, `receptor.domicilio` | no | Van en el PDF; WSFE no los recibe |
+| `condicion_venta` | no | Texto del PDF: `Contado` por defecto, o `Transferencia Bancaria`, `Cuenta Corriente`, etc. |
 | `moneda` | no | `PES` por defecto; `DOL`, `060` (euro), etc. |
 | `cancela_misma_moneda` | no | Con moneda extranjera: `S` si se cobra en esa misma moneda, `N` (por defecto) si no |
 | `cotizacion` | no | Por defecto, la oficial de ARCA del día anterior a `fecha` |
@@ -128,7 +131,7 @@ El JSON lleva `"tipo"`: `"C"` si sos monotributista; `"A"` (a responsables inscr
 | `punto_venta` | no | Por defecto, el primer punto de venta activo de WSFE |
 | `items[]` | sí | `descripcion`, `precio` y, opcionales, `cantidad` y `bonificacion`. En A y B, `precio` es el neto sin IVA y cada ítem lleva `iva` (`21` por defecto; también `0`, `2.5`, `5`, `10.5`, `27`). En C, `precio` es el final |
 
-WSFE no recibe el detalle de ítems, solo los totales: el script calcula el neto, el IVA por alícuota y el total, y guarda los ítems en el JSON. Cada factura aprobada queda en `facturas/<entorno>/<tipo>-PPPPP-NNNNNNNN.json`.
+WSFE no recibe el detalle de ítems, solo los totales: el script calcula el neto, el IVA por alícuota y el total, y guarda los ítems en el JSON. Cada factura aprobada queda en `facturas/<entorno>/<tipo>-PPPPP-NNNNNNNN.json`, con su PDF al lado (`<CUIT>_011_<PPPPP>_<NNNNNNNN>.pdf` para la C).
 
 **Aprobada con observaciones:** ARCA puede aprobar una factura y a la vez avisar que hay que anularla (por ejemplo, si la CUIT del receptor no existe). El script lo muestra destacado; en producción, eso obliga a emitir una nota de crédito. Revisá bien el documento del receptor antes de emitir.
 

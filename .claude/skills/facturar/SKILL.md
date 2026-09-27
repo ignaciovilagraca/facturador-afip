@@ -237,6 +237,7 @@ Mismo flujo y misma regla de producción que la Factura E, con estas diferencias
 - `concepto`: `2` servicios salvo que venda productos (`1`) o ambos (`3`).
 - Con servicios: `servicio_desde`, `servicio_hasta` (por defecto el mes de `fecha`) y `fecha_vto_pago` (no puede ser anterior a `fecha`).
 - Ítems: en C, `precio` es el final. En A y B, `precio` es el neto sin IVA y cada ítem lleva `iva` (21 por defecto). Si el usuario te da un monto "con IVA incluido", calculá el neto y mostralo en la confirmación.
+- `receptor.nombre` y `receptor.domicilio` van en el PDF aunque ARCA no los reciba; pedilos. `condicion_venta` es `Contado` salvo que diga otra cosa.
 - `moneda` es `PES` salvo que diga otra cosa; con moneda extranjera preguntá si se cobra en esa misma moneda (`cancela_misma_moneda` `S` o `N`).
 - `perfil.formato` y `perfil.fechas` son para la Factura E; en las comunes usalos solo si el usuario lo pide.
 - ARCA acepta `fecha` hasta 5 días antes o después de hoy con productos, y hasta 10 con servicios.
@@ -249,7 +250,7 @@ Mismo flujo y misma regla de producción que la Factura E, con estas diferencias
 
 **Producción (paso 5).** Si `perfil.punto_venta_prod_comunes` es `null`, el usuario todavía no tiene punto de venta para comunes: explicale que tiene que darlo de alta (README, paso 3.3) y autorizar `wsfe` en el Administrador de Relaciones (paso 3.2) antes de emitir. No hay otra diferencia: vos no corrés producción.
 
-**Después (pasos 6 y 7).** Las comunes todavía no tienen PDF: confirmale el número, el CAE y el vencimiento a partir de `facturas/prod/<tipo>-PPPPP-NNNNNNNN.json`, y no subas nada a Drive.
+**Después (pasos 6 y 7).** Igual que la Factura E: confirmale el número, el CAE y el vencimiento a partir de `facturas/prod/<tipo>-PPPPP-NNNNNNNN.json`, y subí el PDF (`<CUIT>_011_<PPPPP>_<NNNNNNNN>.pdf` para la C) a la misma carpeta de Drive. Si falta el PDF, `pdf.py` lo regenera a partir de ese JSON.
 
 ## Si algo falla
 

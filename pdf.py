@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Genera el PDF de una Factura E con el mismo diseño que "Comprobantes en línea" de ARCA.
+"""Genera el PDF de una factura (E, o A, B, C) con el mismo diseño que "Comprobantes en línea" de ARCA.
 
 Uso: .venv/bin/python pdf.py facturas/prod/E-00004-00000001.json
 
 facturar.py lo llama solo después de cada factura aprobada. El PDF queda al lado
-del JSON, con el nombre que usa ARCA: <CUIT>_019_<PPPPP>_<NNNNNNNN>.pdf
+del JSON, con el nombre que usa ARCA: <CUIT>_<tipo>_<PPPPP>_<NNNNNNNN>.pdf
 """
 import base64
 import json
@@ -237,8 +237,184 @@ def generar(s, destino):
     return destino
 
 
+# --- Facturas comunes (A, B, C) ---
+
+TIPO_CMP = {"A": 1, "B": 6, "C": 11}
+DOC_ETIQUETA = {80: "CUIT", 86: "CUIL", 96: "DNI", 99: "Doc."}
+# Textos de ARCA (FEParamGetCondicionIvaReceptor)
+CONDICION_IVA = {
+    1: "IVA Responsable Inscripto", 4: "IVA Sujeto Exento", 5: "Consumidor Final",
+    6: "Responsable Monotributo", 7: "Sujeto No Categorizado", 8: "Proveedor del Exterior",
+    9: "Cliente del Exterior", 10: "IVA Liberado – Ley N° 19.640", 13: "Monotributista Social",
+    15: "IVA No Alcanzado", 16: "Monotributo Trabajador Independiente Promovido",
+}
+
+
+def _emisor(s):
+    """Los JSON viejos de facturas comunes solo guardaban el CUIT: el resto sale del .env."""
+    if s.get("emisor"):
+        return s["emisor"]
+    import os
+    import afip  # noqa: F401  (carga el .env)
+    return {"cuit": s.get("emisor_cuit") or afip.CUIT,
+            "razon_social": os.environ.get("AFIP_RAZON_SOCIAL"),
+            "domicilio_comercial": os.environ.get("AFIP_DOMICILIO_COMERCIAL"),
+            "condicion_iva": os.environ.get("AFIP_CONDICION_IVA"),
+            "ingresos_brutos": os.environ.get("AFIP_INGRESOS_BRUTOS"),
+            "inicio_actividades": os.environ.get("AFIP_INICIO_ACTIVIDADES")}
+
+
+def url_qr_comun(s, em):
+    rec = s["receptor"]
+    datos = {
+        "ver": 1,
+        "fecha": datetime.strptime(s["fecha"], "%Y%m%d").strftime("%Y-%m-%d"),
+        "cuit": int(em["cuit"]),
+        "ptoVta": s["punto_venta"],
+        "tipoCmp": TIPO_CMP[s["tipo"]],
+        "nroCmp": s["numero"],
+        "importe": _numero(s["total"]),
+        "moneda": s["moneda"],
+        "ctz": _numero(s["cotizacion"]),
+        "tipoDocRec": int(rec["doc_tipo"]),
+        "nroDocRec": int(rec["doc_nro"] or 0),
+        "tipoCodAut": "E",
+        "codAut": int(s["cae"]),
+    }
+    p = base64.b64encode(json.dumps(datos, separators=(",", ":")).encode()).decode()
+    return f"https://www.arca.gob.ar/fe/qr/?p={p}"
+
+
+def generar_comun(s, destino):
+    """Factura C con el diseño de "Comprobantes en línea". A y B usan la misma base (sin detalle de IVA por ítem)."""
+    em, rec, f = _emisor(s), s.get("receptor", {}), s["factura"]
+    items = f["items"]
+    rec_f = f.get("receptor", {})
+    nombre_rec = rec.get("nombre") or rec_f.get("nombre", "")
+    domicilio_rec = rec.get("domicilio") or rec_f.get("domicilio", "")
+    signo = "$" if s["moneda"] == "PES" else MONEDA_ISO.get(s["moneda"], s["moneda"])
+    h = _Hoja(destino)
+
+    # Encabezado
+    h.rect(15, 23, 581, 169)
+    h.linea(15, 50.5, 581, 50.5)
+    h.texto(298, 42.31, "ORIGINAL", "Helvetica-Bold", 14, "centro")
+    h.linea(298.5, 89, 298.5, 169)
+    h.rect(275, 51, 322, 92, 0.5)
+    h.texto(298.5, 73.9, s["tipo"], "Helvetica-Bold", 24, "centro")
+    h.texto(298.5, 86.04, f"COD. {TIPO_CMP[s['tipo']]:03d}", "Helvetica-Bold", 8, "centro")
+
+    h.texto(144.5, 77.29, em["razon_social"], "Helvetica-Bold", 10, "centro")
+    h.texto(21, 116.59, "Razón Social:", "Helvetica-Bold", 9)
+    h.texto(84, 116.59, em["razon_social"])
+    h.texto(21, 140.59, "Domicilio Comercial:", "Helvetica-Bold", 9)
+    for i, linea in enumerate(simpleSplit(em["domicilio_comercial"], "Helvetica", 9, 295 - 116)[:2]):
+        h.texto(116, 140.59 + i * 10.35, linea)
+    h.texto(21, 165.41, "Condición frente al IVA:", "Helvetica-Bold", 9)
+    h.texto(131, 165.41, em["condicion_iva"], "Helvetica-Bold", 9)
+
+    h.texto(341, 77.33, "FACTURA", "Helvetica-Bold", 18)
+    h.texto(341, 99.24, "Punto de Venta:", "Helvetica-Bold", 9)
+    h.texto(417, 100.04, f"{s['punto_venta']:05d}", "Helvetica-Bold", 10)
+    h.texto(461, 99.24, "Comp. Nro:", "Helvetica-Bold", 9)
+    h.texto(517, 100.04, f"{s['numero']:08d}", "Helvetica-Bold", 10)
+    h.texto(341, 115.41, "Fecha de Emisión:", "Helvetica-Bold", 9)
+    h.texto(428, 115.54, _fecha(s["fecha"]), "Helvetica-Bold", 10)
+    h.texto(341, 138.41, "CUIT:", "Helvetica-Bold", 9)
+    h.texto(369, 138.41, em["cuit"])
+    h.texto(341, 150.41, "Ingresos Brutos:", "Helvetica-Bold", 9)
+    h.texto(419, 150.41, em["ingresos_brutos"])
+    h.texto(341, 162.41, "Fecha de Inicio de Actividades:", "Helvetica-Bold", 9)
+    h.texto(486, 162.41, datetime.strptime(em["inicio_actividades"], "%Y-%m-%d").strftime("%d/%m/%Y"))
+
+    # Período facturado (solo servicios)
+    h.rect(15, 170, 581, 192)
+    periodo = s.get("periodo")
+    if periodo:
+        h.texto(21, 185.29, "Período Facturado Desde:", "Helvetica-Bold", 10)
+        h.texto(159, 185.29, _fecha(periodo["desde"]), "Helvetica", 10)
+        h.texto(232.4, 185.29, "Hasta:", "Helvetica-Bold", 10)
+        h.texto(265, 185.29, _fecha(periodo["hasta"]), "Helvetica", 10)
+        h.texto(363.1, 185.29, "Fecha de Vto. para el pago:", "Helvetica-Bold", 10)
+        h.texto(495, 185.29, _fecha(periodo["vto_pago"]), "Helvetica", 10)
+
+    # Receptor
+    h.rect(15, 194, 581, 256, 0.5)
+    doc_tipo = int(rec.get("doc_tipo", 99))
+    if doc_tipo != 99:
+        fin = h.texto(21, 204.59, f"{DOC_ETIQUETA.get(doc_tipo, 'Doc.')}: ", "Helvetica-Bold", 9)
+        h.texto(fin, 204.59, str(rec.get("doc_nro", "")))
+    h.texto(222.4, 203.63, "Apellido y Nombre / Razón Social:", "Helvetica-Bold", 8)
+    h.texto(353, 203.63, nombre_rec, "Helvetica", 8)
+    h.texto(21, 220.63, "Condición frente al IVA:", "Helvetica-Bold", 8)
+    h.texto(131, 220.63, CONDICION_IVA.get(int(rec.get("condicion_iva", 5)), ""), "Helvetica", 8)
+    h.texto(312.4, 220.63, "Domicilio:", "Helvetica-Bold", 8)
+    for i, linea in enumerate(simpleSplit(domicilio_rec, "Helvetica", 8, 578 - 353)[:3]):
+        h.texto(353, 220.63 + i * 9.2, linea, "Helvetica", 8)
+    h.texto(21, 240.63, "Condición de venta:", "Helvetica-Bold", 8)
+    h.texto(113, 240.63, s.get("condicion_venta", "Contado"), "Helvetica", 8)
+
+    # Tabla de ítems
+    for x0, x1 in [(15, 55), (55, 196), (196, 261), (261, 304), (303, 384), (384, 416), (416, 489), (488, 581)]:
+        h.rect(x0, 260, x1, 278, relleno=0.8)
+    for x, txt, tam, y in [(19, "Código", 8, 272.04), (60, "Producto / Servicio", 8, 272.04), (211.4, "Cantidad", 8, 272.04),
+                           (263.6, "U. Medida", 8, 272.04), (324.1, "Precio Unit.", 7, 271.66), (387, "% Bonif", 7, 271.66),
+                           (434.4, "Imp. Bonif.", 7, 271.66), (520.5, "Subtotal", 7, 271.66)]:
+        h.texto(x, y, txt, "Helvetica-Bold", tam)
+    y = 291.04
+    for it in items:
+        cantidad = Decimal(str(it.get("cantidad", 1)))
+        precio = Decimal(str(it["precio"]))
+        bruto = (cantidad * precio).quantize(Decimal("0.01"))
+        bonif = Decimal(str(it.get("bonificacion", 0))).quantize(Decimal("0.01"))
+        pct = (bonif / bruto * 100).quantize(Decimal("0.01")) if bruto else Decimal("0")
+        if it.get("codigo"):
+            h.texto(19, y, str(it["codigo"])[:8], "Helvetica", 8)
+        lineas = simpleSplit(it["descripcion"], "Helvetica", 8, 196 - 57 - 2)[:3]
+        for i, linea in enumerate(lineas):
+            h.texto(57, y + i * 10, linea, "Helvetica", 8)
+        h.texto(259, y, _coma(cantidad, 2), "Helvetica", 8, "der")
+        h.texto(268.3, y - 0.38, "unidades", "Helvetica", 7)
+        h.texto(382, y, _coma(precio, 2), "Helvetica", 8, "der")
+        h.texto(407.8, y, _coma(pct, 2), "Helvetica", 8, "der")
+        h.texto(487, y, _coma(bonif, 2), "Helvetica", 8, "der")
+        h.texto(579, y, _coma(bruto - bonif, 2), "Helvetica", 8, "der")
+        y += max(14, 10 * len(lineas) + 4)
+
+    # Totales
+    h.rect(15, 517, 581, 611, 1.0)
+    if s["tipo"] == "C":
+        filas = [("Subtotal: " + signo, s["total"], 9, 561.59), ("Importe Otros Tributos: " + signo, "0", 9, 579.59)]
+    else:
+        filas = [("Importe Neto Gravado: " + signo, s["neto"], 9, 543.59), ("IVA: " + signo, s["iva"], 9, 561.59),
+                 ("Importe Otros Tributos: " + signo, "0", 9, 579.59)]
+    for etiqueta, valor, tam, yy in filas:
+        h.texto(491, yy, etiqueta, "Helvetica-Bold", tam, "der")
+        h.texto(573, yy, _coma(valor, 2), "Helvetica-Bold", tam, "der")
+    h.texto(491, 598.54, f"Importe Total: {signo}", "Helvetica-Bold", 10, "der")
+    h.texto(573, 598.54, _coma(s["total"], 2), "Helvetica-Bold", 10, "der")
+
+    # CAE, QR y leyendas
+    h.qr(url_qr_comun(s, em), 20, 653, 80)
+    h.imagen(str(LOGO), 113, 653, 168.07, 677)
+    h.texto(275.8, 657.29, "Pág. 1/1", "Helvetica-Bold", 10)
+    h.texto(473, 654.54, "CAE N°:", "Helvetica-Bold", 10, "der")
+    h.texto(478, 654.54, s["cae"], "Helvetica", 10)
+    h.texto(473, 669.54, "Fecha de Vto. de CAE:", "Helvetica-Bold", 10, "der")
+    h.texto(478, 669.54, _fecha(s["vencimiento_cae"]), "Helvetica", 10)
+    h.texto(113, 695.59, "Comprobante Autorizado", "Helvetica-BoldOblique", 9)
+    h.texto(113, 712.73, "Esta Agencia no se responsabiliza por los datos ingresados en el detalle de la operación",
+            "Helvetica-BoldOblique", 6)
+
+    h.c.showPage()
+    h.c.save()
+    return destino
+
+
 def nombre_archivo(s):
-    return f"{s['emisor']['cuit']}_019_{s['punto_venta']:05d}_{s['numero']:08d}.pdf"
+    """Nombre que usa ARCA: <CUIT>_<tipo de comprobante>_<punto de venta>_<número>.pdf"""
+    tipo = TIPO_CMP.get(s.get("tipo"), 19)
+    return f"{_emisor(s)['cuit']}_{tipo:03d}_{s['punto_venta']:05d}_{s['numero']:08d}.pdf"
 
 
 def main():
@@ -246,7 +422,8 @@ def main():
         raise SystemExit(__doc__)
     origen = Path(sys.argv[1])
     s = json.loads(origen.read_text())
-    destino = generar(s, origen.with_name(nombre_archivo(s)))
+    generador = generar_comun if s.get("tipo") in TIPO_CMP else generar
+    destino = generador(s, origen.with_name(nombre_archivo(s)))
     print(f"PDF: {destino}")
 
 
