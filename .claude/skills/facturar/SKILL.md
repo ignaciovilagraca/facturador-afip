@@ -29,7 +29,7 @@ Todos los comandos de abajo se corren desde esa carpeta (`cd <proyecto> && ...`)
 | `drive_folder_id` | Carpeta de Drive donde subir los PDF. Vacío: no se sube nada |
 | `formato` | `un_solo_item`, `descripcion`, `idioma` y `forma_pago` por defecto |
 | `fechas` | Reglas para `fecha` y `fecha_pago` (ver paso 1) |
-| `cliente_por_defecto` | Cliente cuando el usuario no nombra otro; `notas` tiene aclaraciones que hay que respetar |
+| `clientes` | Clientes habituales, para ofrecerlos cuando el usuario no nombra ninguno; `notas` tiene aclaraciones que hay que respetar. En perfiles viejos es un único `cliente_por_defecto` |
 
 Si `perfil.json` no existe, decile que copie `perfil.example.json` a `perfil.json` y lo complete, y ayudalo a hacerlo. Sin perfil no sigas. Si falta `.env` o el entorno `.venv`, ayudalo con la sección Configuración del README. Si faltan los certificados en `certs/`, o el usuario está trabado en ARCA, seguí [Guiar el alta en ARCA](#guiar-el-alta-en-arca).
 
@@ -122,7 +122,7 @@ Suele ser el invoice que le genera su cliente o la plataforma que le paga. Leelo
 | En el invoice | En el JSON |
 |---|---|
 | Seller / Tax ID | No va al JSON. Verificá que el Tax ID sea el CUIT del usuario (`AFIP_CUIT` en `.env`); si no coincide, avisale. |
-| Buyer (nombre, dirección, Tax ID) | `cliente.nombre`, `cliente.domicilio`, `cliente.id_impositivo`. Si es el cliente por defecto del perfil, usá los datos del perfil y avisá si el invoice trae otros. |
+| Buyer (nombre, dirección, Tax ID) | `cliente.nombre`, `cliente.domicilio`, `cliente.id_impositivo`. Si es uno de `perfil.clientes`, usá los datos del perfil y avisá si el invoice trae otros. |
 | Líneas de ITEM / AMOUNT | Si `formato.un_solo_item` es `true`, se suman en un único ítem con `formato.descripcion`. Si no, cada línea es un ítem con su descripción. |
 | Moneda de los montos | `moneda`: USD → `DOL`, EUR → `060` |
 | Issue date, payment date | Sirven para saber el mes trabajado. Las fechas de la Factura E salen de las reglas de `fechas`, no del invoice. |
@@ -131,7 +131,11 @@ Controlá que la suma de las líneas dé el TOTAL del invoice. Si no coincide, o
 
 #### b) El usuario no nombra cliente
 
-"Haceme la factura del mes", "facturá septiembre": la factura es para `cliente_por_defecto`. Pedile el monto si no lo dio.
+"Haceme la factura del mes", "facturá septiembre": el cliente sale de `perfil.clientes`.
+- Si hay uno solo (o el perfil tiene `cliente_por_defecto`), la factura es para ese.
+- Si hay varios, no elijas vos: ofrecéselos con nombre e ID impositivo y esperá que elija. Si el usuario pasó un invoice, el Buyer del invoice ya dice cuál es.
+
+Pedile el monto si no lo dio. Si al cliente elegido le falta un dato obligatorio (por ejemplo, `domicilio` en `null`), pedíselo y guardalo en `perfil.json` para la próxima.
 
 #### c) Otro cliente
 
@@ -143,7 +147,7 @@ Tomalo de `perfil.formato`, salvo que el usuario pida otra cosa para esta factur
 - Con `un_solo_item`, la factura lleva una sola línea: `descripcion` del perfil, `cantidad` 1, `unidad` 7 (unidades) y `precio` igual al total. No se le agrega el mes a la descripción.
 - `idioma` y `forma_pago` del perfil.
 - Sin `obs`, salvo que el usuario lo pida.
-- Respetá las `notas` del cliente por defecto.
+- Respetá las `notas` del cliente.
 
 #### Fechas
 

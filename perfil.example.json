@@ -16,16 +16,30 @@
     "emision": "ultimo_dia_mes_trabajado",
     "pago": "primer_dia_habil_mes_siguiente"
   },
-  "cliente_por_defecto": {
-    "alias": "acme",
-    "pais_destino": 212,
-    "cliente": {
-      "nombre": "Acme Inc",
-      "cuit_pais": "55000002126",
-      "id_impositivo": "00-0000000",
-      "domicilio": "123 Main St, New York, NY 10001, USA"
+  "clientes": [
+    {
+      "alias": "acme",
+      "pais_destino": 212,
+      "cliente": {
+        "nombre": "Acme Inc",
+        "cuit_pais": "55000002126",
+        "id_impositivo": "00-0000000",
+        "domicilio": "123 Main St, New York, NY 10001, USA"
+      },
+      "moneda": "DOL",
+      "notas": ""
     },
-    "moneda": "DOL",
-    "notas": ""
-  }
+    {
+      "alias": "globex",
+      "pais_destino": 426,
+      "cliente": {
+        "nombre": "Globex Ltd",
+        "cuit_pais": "55000004269",
+        "id_impositivo": "GB000000000",
+        "domicilio": "1 High St, London EC1A 1AA, UK"
+      },
+      "moneda": "DOL",
+      "notas": ""
+    }
+  ]
 }
