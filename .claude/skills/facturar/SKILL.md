@@ -1,6 +1,6 @@
 ---
 name: facturar
-description: Prepara facturas electrónicas de ARCA/AFIP con el proyecto facturador-afip (Facturas A, B y C por WSFE y Factura E de exportación por WSFEX) y las valida en homologación; la emisión en producción la hace el usuario y solo con su aprobación expresa. Después sube el PDF a Drive si está configurado. Usala siempre que pida crear, hacer, emitir o preparar una factura, facturarle a un cliente, cobrar un trabajo al exterior, sacar un CAE, repetir la factura del mes, o cuando pase un invoice (PDF o imagen) para crear "la equivalente" en ARCA, aunque no diga "Factura E", "ARCA" ni "AFIP". También guía paso a paso el alta en ARCA (clave y CSR, WSASS, certificados, Administrador de Relaciones, puntos de venta, renovación) cuando el usuario está configurando, se pierde o pega un error o una captura de ARCA.
+description: Prepara facturas electrónicas de ARCA/AFIP con el proyecto facturador-afip (Facturas A, B y C por WSFE y Factura E de exportación por WSFEX) y las valida en homologación; la emisión en producción la hace el usuario y solo con su aprobación expresa. Después sube el PDF a Drive si está configurado. Usala siempre que pida crear, hacer, emitir o preparar una factura, facturarle a un cliente, cobrar un trabajo al exterior, sacar un CAE, repetir la factura del mes, anular una factura o hacer una nota de crédito, o cuando pase un invoice (PDF o imagen) para crear "la equivalente" en ARCA, aunque no diga "Factura E", "ARCA" ni "AFIP". También guía paso a paso el alta en ARCA (clave y CSR, WSASS, certificados, Administrador de Relaciones, puntos de venta, renovación) cuando el usuario está configurando, se pierde o pega un error o una captura de ARCA.
 ---
 
 # Facturar (Facturas A, B, C y E)
@@ -308,6 +308,23 @@ Mismo flujo y misma regla de producción que la Factura E, con estas diferencias
 **Producción (paso 5).** Si `perfil.punto_venta_prod_comunes` es `null`, el usuario todavía no tiene punto de venta para A, B y C: explicale que tiene que darlo de alta (README, paso 3.3) y autorizar `wsfe` en el Administrador de Relaciones (paso 3.2) antes de emitir. No hay otra diferencia: vos no corrés producción.
 
 **Después (pasos 6 y 7).** Igual que la Factura E: confirmale el número, el CAE y el vencimiento a partir de `facturas/prod/<tipo>-PPPPP-NNNNNNNN.json`, y subí el PDF (`<CUIT>_011_<PPPPP>_<NNNNNNNN>.pdf` para la C) a la misma carpeta de Drive. Si falta el PDF, `pdf.py` lo regenera a partir de ese JSON.
+
+## Notas de crédito
+
+Anulan, total o parcialmente, una Factura A, B o C ya emitida en producción. Es el mismo flujo, con la misma regla de producción: una nota de crédito también es un comprobante fiscal real. La Factura E no está soportada: si piden anular una E, avisá que el proyecto todavía no lo hace.
+
+**Datos (paso 1).** El JSON sigue `ejemplo_nota_credito.json`: el de una factura común más `nota_credito_de` con `punto_venta`, `numero` y `fecha` de la factura original. La letra (`tipo`) es la de la factura.
+- Buscá la factura en `facturas/prod/<tipo>-PPPPP-NNNNNNNN.json` y copiá de su campo `factura` el receptor, el concepto, el período, la condición de venta y los ítems. Si no está (por ejemplo, la emitió desde otra computadora), pedile el PDF o los datos; si pasa el PDF, leelo.
+- Salvo que el usuario diga que es parcial, la nota de crédito anula la factura entera: mismos ítems y mismo total.
+- `fecha` es la de la nota de crédito (por defecto hoy), con los mismos límites de ARCA. Con servicios, `fecha_vto_pago` va igual a `fecha`.
+
+**Confirmación (paso 2).** Mostrala como "Nota de crédito C", con una línea "Anula: Factura C PPPPP-NNNNNNNN del DD/MM/AAAA" y aclarando si es total o parcial.
+
+**Borrador (paso 3).** `facturas/borradores/nc-<alias-cliente>-<PPPPP>-<NNNNNNNN>.json`.
+
+**Homologación (paso 4).** Mismo comando que una factura común. ARCA la aprueba aunque la factura original, que es de producción, no exista en homologación.
+
+**Después (pasos 6 y 7).** Queda en `facturas/prod/NC-<tipo>-PPPPP-NNNNNNNN.json`, con el PDF `<CUIT>_013_<PPPPP>_<NNNNNNNN>.pdf` para la C (`_003_` la A, `_008_` la B). Subilo a la misma carpeta de Drive.
 
 ## Si algo falla
 

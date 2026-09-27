@@ -21,6 +21,7 @@ Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF 
   - [3. Hook de git](#3-hook-de-git)
 - [Uso](#uso)
   - [Campos del JSON (Facturas A, B y C)](#campos-del-json-facturas-a-b-y-c)
+  - [Notas de crédito](#notas-de-crédito)
   - [Campos del JSON (Factura E)](#campos-del-json-factura-e)
 - [Alta en ARCA paso a paso](#alta-en-arca-paso-a-paso)
   - [Requisitos](#requisitos)
@@ -49,6 +50,7 @@ Requiere Python 3 y `openssl`. La emisión no usa dependencias externas; el PDF 
 | `parametros.py` | Busca códigos de país, CUIT genérico por país y monedas |
 | `ejemplo_factura.json` | Formato de una Factura E, con un cliente ficticio |
 | `ejemplo_factura_comun.json` | Formato de una Factura C, con un cliente ficticio |
+| `ejemplo_nota_credito.json` | Formato de una nota de crédito C que anula una Factura C |
 
 ## Configuración
 
@@ -139,6 +141,21 @@ El JSON lleva `"tipo"`: `"C"` si sos monotributista; `"A"` (a responsables inscr
 WSFE no recibe el detalle de ítems, solo los totales: el script calcula el neto, el IVA por alícuota y el total, y guarda los ítems en el JSON. Cada factura aprobada queda en `facturas/<entorno>/<tipo>-PPPPP-NNNNNNNN.json`, con su PDF al lado (`<CUIT>_011_<PPPPP>_<NNNNNNNN>.pdf` para la C).
 
 **Aprobada con observaciones:** ARCA puede aprobar una factura y a la vez avisar que hay que anularla (por ejemplo, si la CUIT del receptor no existe). El script lo muestra destacado; en producción, eso obliga a emitir una nota de crédito. Revisá bien el documento del receptor antes de emitir.
+
+### Notas de crédito
+
+Una factura emitida no se puede borrar: se anula, total o parcialmente, con una nota de crédito de la misma letra (A, B o C). Es el mismo JSON de una factura común con un campo más, `nota_credito_de`, que indica la factura original. Ver `ejemplo_nota_credito.json`.
+
+| Campo | Obligatorio | Descripción |
+|---|---|---|
+| `nota_credito_de.punto_venta` | sí | Punto de venta de la factura original |
+| `nota_credito_de.numero` | sí | Número de la factura original |
+| `nota_credito_de.fecha` | sí | Fecha de emisión de la factura original, `AAAA-MM-DD` |
+
+- El resto de los campos son los de la factura: para anularla entera se repiten el receptor, el concepto, el período y los ítems. Para una anulación parcial, los ítems llevan solo el monto que se acredita.
+- `fecha` es la de la nota de crédito, no la de la factura; tiene los mismos límites de ARCA.
+- ARCA la informa como comprobante asociado a la factura. Los tipos son 3 (A), 8 (B) y 13 (C), con su propia numeración por punto de venta.
+- Queda en `facturas/<entorno>/NC-<tipo>-PPPPP-NNNNNNNN.json`, con su PDF al lado (`<CUIT>_013_<PPPPP>_<NNNNNNNN>.pdf` para la C).
 
 ### Campos del JSON (Factura E)
 

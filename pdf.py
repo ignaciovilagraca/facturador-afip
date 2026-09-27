@@ -240,6 +240,7 @@ def generar(s, destino):
 # --- Facturas comunes (A, B, C) ---
 
 TIPO_CMP = {"A": 1, "B": 6, "C": 11}
+TIPO_NOTA_CREDITO = {"A": 3, "B": 8, "C": 13}
 DOC_ETIQUETA = {80: "CUIT", 86: "CUIL", 96: "DNI", 99: "Doc."}
 # Textos de ARCA (FEParamGetCondicionIvaReceptor)
 CONDICION_IVA = {
@@ -264,6 +265,10 @@ def _emisor(s):
             "inicio_actividades": os.environ.get("AFIP_INICIO_ACTIVIDADES")}
 
 
+def codigo_comprobante(s):
+    return (TIPO_NOTA_CREDITO if s.get("nota_credito") else TIPO_CMP)[s["tipo"]]
+
+
 def url_qr_comun(s, em):
     rec = s["receptor"]
     datos = {
@@ -271,7 +276,7 @@ def url_qr_comun(s, em):
         "fecha": datetime.strptime(s["fecha"], "%Y%m%d").strftime("%Y-%m-%d"),
         "cuit": int(em["cuit"]),
         "ptoVta": s["punto_venta"],
-        "tipoCmp": TIPO_CMP[s["tipo"]],
+        "tipoCmp": codigo_comprobante(s),
         "nroCmp": s["numero"],
         "importe": _numero(s["total"]),
         "moneda": s["moneda"],
@@ -286,7 +291,7 @@ def url_qr_comun(s, em):
 
 
 def generar_comun(s, destino):
-    """Factura C con el diseño de "Comprobantes en línea". A y B usan la misma base (sin detalle de IVA por ítem)."""
+    """Factura o nota de crédito C con el diseño de "Comprobantes en línea". A y B usan la misma base (sin detalle de IVA por ítem)."""
     em, rec, f = _emisor(s), s.get("receptor", {}), s["factura"]
     items = f["items"]
     rec_f = f.get("receptor", {})
@@ -302,7 +307,7 @@ def generar_comun(s, destino):
     h.linea(298.5, 89, 298.5, 169)
     h.rect(275, 51, 322, 92, 0.5)
     h.texto(298.5, 73.9, s["tipo"], "Helvetica-Bold", 24, "centro")
-    h.texto(298.5, 86.04, f"COD. {TIPO_CMP[s['tipo']]:03d}", "Helvetica-Bold", 8, "centro")
+    h.texto(298.5, 86.04, f"COD. {codigo_comprobante(s):03d}", "Helvetica-Bold", 8, "centro")
 
     h.texto(144.5, 77.29, em["razon_social"], "Helvetica-Bold", 10, "centro")
     h.texto(21, 116.59, "Razón Social:", "Helvetica-Bold", 9)
@@ -313,7 +318,7 @@ def generar_comun(s, destino):
     h.texto(21, 165.41, "Condición frente al IVA:", "Helvetica-Bold", 9)
     h.texto(131, 165.41, em["condicion_iva"], "Helvetica-Bold", 9)
 
-    h.texto(341, 77.33, "FACTURA", "Helvetica-Bold", 18)
+    h.texto(341, 77.33, "NOTA DE CRÉDITO" if s.get("nota_credito") else "FACTURA", "Helvetica-Bold", 18)
     h.texto(341, 99.24, "Punto de Venta:", "Helvetica-Bold", 9)
     h.texto(417, 100.04, f"{s['punto_venta']:05d}", "Helvetica-Bold", 10)
     h.texto(461, 99.24, "Comp. Nro:", "Helvetica-Bold", 9)
@@ -380,6 +385,10 @@ def generar_comun(s, destino):
         h.texto(487, y, _coma(bonif, 2), "Helvetica", 8, "der")
         h.texto(579, y, _coma(bruto - bonif, 2), "Helvetica", 8, "der")
         y += max(14, 10 * len(lineas) + 4)
+    asoc = s.get("asociado")
+    if asoc:
+        h.texto(57, y + 6, f"Comprobante asociado: Factura {asoc['tipo']} {asoc['punto_venta']:05d}-{asoc['numero']:08d}"
+                f" del {_fecha(asoc['fecha'])}", "Helvetica-Bold", 8)
 
     # Totales
     h.rect(15, 517, 581, 611, 1.0)
@@ -413,7 +422,7 @@ def generar_comun(s, destino):
 
 def nombre_archivo(s):
     """Nombre que usa ARCA: <CUIT>_<tipo de comprobante>_<punto de venta>_<número>.pdf"""
-    tipo = TIPO_CMP.get(s.get("tipo"), 19)
+    tipo = codigo_comprobante(s) if s.get("tipo") in TIPO_CMP else 19
     return f"{_emisor(s)['cuit']}_{tipo:03d}_{s['punto_venta']:05d}_{s['numero']:08d}.pdf"
 
 

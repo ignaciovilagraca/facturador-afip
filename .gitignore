@@ -18,6 +18,7 @@ __pycache__/
 *.json
 !ejemplo_factura.json
 !ejemplo_factura_comun.json
+!ejemplo_nota_credito.json
 !perfil.example.json
 .venv/
 *.pdf

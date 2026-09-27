@@ -1,0 +1,20 @@
+{
+  "tipo": "C",
+  "nota_credito_de": {"punto_venta": 1, "numero": 1, "fecha": "2026-09-30"},
+  "concepto": 2,
+  "receptor": {
+    "nombre": "Juan Pérez",
+    "doc_tipo": "DNI",
+    "doc_nro": "30123456",
+    "condicion_iva": 5,
+    "domicilio": "Av. Siempreviva 742, CABA"
+  },
+  "moneda": "PES",
+  "fecha": "2026-10-05",
+  "servicio_desde": "2026-09-01",
+  "servicio_hasta": "2026-09-30",
+  "fecha_vto_pago": "2026-10-05",
+  "items": [
+    {"descripcion": "Consultoría de software", "cantidad": 1, "precio": 150000}
+  ]
+}

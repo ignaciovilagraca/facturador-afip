@@ -5,6 +5,9 @@ Diferencias con la Factura E:
   Los ítems quedan en el JSON guardado.
 - En A y B el precio de cada ítem es el neto, sin IVA, y lleva su alícuota. En C el precio es final.
 - Con concepto 2 (servicios) o 3 (productos y servicios) van el período facturado y el vencimiento del pago.
+
+Notas de crédito: el mismo JSON con "nota_credito_de": {"punto_venta", "numero", "fecha"} de la factura
+que anula o ajusta, que tiene que ser de la misma letra. Se informa como comprobante asociado (CbtesAsoc).
 """
 import json
 import os
@@ -17,6 +20,7 @@ from afip import (CUIT, FEV1_NS, RAIZ, campo_fe, login, mensajes_fe, punto_de_ve
                   ultimo_comprobante_fe, wsfe)
 
 TIPOS = {"A": 1, "B": 6, "C": 11}
+NOTAS_CREDITO = {"A": 3, "B": 8, "C": 13}
 # Alícuotas de IVA: porcentaje -> código de ARCA
 ALICUOTAS = {"0": 3, "2.5": 9, "5": 8, "10.5": 4, "21": 5, "27": 6}
 DOCUMENTOS = {"CUIT": 80, "CUIL": 86, "DNI": 96, "CF": 99}
@@ -67,9 +71,14 @@ def cotizacion(env, auth, moneda, fecha):
     raise SystemExit(f"No se pudo obtener la cotización de {moneda}: {mensajes_fe(r, 'Errors', 'Err')}")
 
 
+def nombre_comprobante(tipo, nota_credito):
+    return f"{'Nota de crédito' if nota_credito else 'Factura'} {tipo}"
+
+
 def emitir(f, env, pto_forzado, hoy):
     tipo = f["tipo"]
-    cbte_tipo = TIPOS[tipo]
+    asociado = f.get("nota_credito_de")
+    cbte_tipo = NOTAS_CREDITO[tipo] if asociado else TIPOS[tipo]
     rec = f.get("receptor", {})
     doc_tipo = DOCUMENTOS.get(str(rec.get("doc_tipo", "CF")).upper(), rec.get("doc_tipo"))
     doc_nro = rec.get("doc_nro") or 0
@@ -98,8 +107,19 @@ def emitir(f, env, pto_forzado, hoy):
         servicios = _tag("FchServDesde", _fch(desde)) + _tag("FchServHasta", _fch(hasta)) + _tag("FchVtoPago", _fch(vto))
         periodo = {"desde": _fch(desde), "hasta": _fch(hasta), "vto_pago": _fch(vto)}
 
+    asoc_xml = ""
+    if asociado:
+        asoc_pto, asoc_nro = int(asociado["punto_venta"]), int(asociado["numero"])
+        asoc_fch = date.fromisoformat(asociado["fecha"])
+        asoc_xml = (
+            "<CbtesAsoc><CbteAsoc>" + _tag("Tipo", TIPOS[tipo]) + _tag("PtoVta", asoc_pto) + _tag("Nro", asoc_nro)
+            + _tag("Cuit", CUIT) + _tag("CbteFch", _fch(asoc_fch)) + "</CbteAsoc></CbtesAsoc>"
+        )
+
     print(f"\nEntorno:       {env}")
-    print(f"Comprobante:   Factura {tipo} {int(pto):05d}-{nro:08d} del {_fch(fecha)} ({CONCEPTOS[concepto]})")
+    print(f"Comprobante:   {nombre_comprobante(tipo, asociado)} {int(pto):05d}-{nro:08d} del {_fch(fecha)} ({CONCEPTOS[concepto]})")
+    if asociado:
+        print(f"Asociada a:    Factura {tipo} {asoc_pto:05d}-{asoc_nro:08d} del {_fch(asoc_fch)}")
     print(f"Receptor:      {rec.get('nombre', 'Consumidor final')} (doc {doc_tipo} {doc_nro}, cond. IVA {cond_iva})")
     if tipo in ("A", "B"):
         print(f"Neto:          {moneda} {neto}   IVA: {iva}")
@@ -135,6 +155,7 @@ def emitir(f, env, pto_forzado, hoy):
         + _tag("MonCotiz", ctz)
         + (_tag("CanMisMonExt", f.get("cancela_misma_moneda", "N")) if moneda != "PES" else "")
         + _tag("CondicionIVAReceptorId", cond_iva)
+        + asoc_xml
         + iva_xml
         + "</FECAEDetRequest>"
     )
@@ -155,6 +176,9 @@ def emitir(f, env, pto_forzado, hoy):
     salida = {
         "entorno": env,
         "tipo": tipo,
+        "nota_credito": bool(asociado),
+        "asociado": ({"tipo": tipo, "punto_venta": asoc_pto, "numero": asoc_nro, "fecha": _fch(asoc_fch)}
+                     if asociado else None),
         "punto_venta": int(pto),
         "numero": nro,
         "fecha": _fch(fecha),
@@ -183,7 +207,7 @@ def emitir(f, env, pto_forzado, hoy):
         },
         "factura": f,
     }
-    destino = RAIZ / "facturas" / env / f"{tipo}-{int(pto):05d}-{nro:08d}.json"
+    destino = RAIZ / "facturas" / env / f"{'NC-' if asociado else ''}{tipo}-{int(pto):05d}-{nro:08d}.json"
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(json.dumps(salida, indent=2, ensure_ascii=False))
 

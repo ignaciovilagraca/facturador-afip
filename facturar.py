@@ -3,6 +3,7 @@
 
 - Factura E (exportación, WSFEX): el formato de ejemplo_factura.json.
 - Facturas comunes A, B o C (WSFE): el JSON lleva "tipo": "A", "B" o "C"; ver ejemplo_factura_comun.json.
+  Con "nota_credito_de" es una nota de crédito de esa letra; ver ejemplo_nota_credito.json.
 
 Uso:
     python3 facturar.py factura.json          # homologación
