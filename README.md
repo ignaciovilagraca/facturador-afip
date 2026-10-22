@@ -36,6 +36,7 @@ Requiere Python 3.11 o más nuevo. La lógica está en la biblioteca `facturador
   - [Renovación](#renovación)
 - [Biblioteca de Python](#biblioteca-de-python)
 - [Skill para Claude Code](#skill-para-claude-code)
+- [Desarrollo](#desarrollo)
 - [Seguridad](#seguridad)
 - [Notas](#notas)
 - [Licencia](#licencia)
@@ -416,6 +417,15 @@ Los tests simulan ARCA: no salen a la red.
 3. Pedile a Claude algo como "haceme la factura de septiembre" o pasale el PDF del invoice.
 
 La skill también sabe guiarte en el alta en ARCA: si te perdés en algún paso o aparece un error, contale en qué pantalla estás o pegale el mensaje, y te dice qué hacer.
+
+## Desarrollo
+
+```bash
+uv run pytest
+```
+
+Los tests no usan la red ni certificados reales. `main` solo cambia por pull request: GitHub Actions
+(`.github/workflows/tests.yml`) corre los tests con Python 3.11 y 3.14 y el merge requiere que pasen.
 
 ## Seguridad
 
